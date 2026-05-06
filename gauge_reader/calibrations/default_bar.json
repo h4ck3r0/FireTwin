@@ -1,0 +1,18 @@
+{
+  "gauge_name": "Standard bar Gauge",
+  "unit": "bar",
+  "description": "Typical 0-10 bar analog pressure gauge",
+  "min_angle": 45,
+  "max_angle": 315,
+  "min_pressure": 0,
+  "max_pressure": 10,
+  "hough_circles_param1": 100,
+  "hough_circles_param2": 30,
+  "hough_circles_minRadius": 50,
+  "hough_circles_maxRadius": 300,
+  "canny_threshold1": 50,
+  "cancy_threshold2": 150,
+  "gaussian_kernel": [15, 15],
+  "hough_lines_minLineLength": 50,
+  "hough_lines_maxLineGap": 10
+}
