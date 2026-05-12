@@ -1,7 +1,8 @@
 {
-  "Standard PSI Gauge": {
-    "pressure": 76.99898927072135,
-    "unit": "PSI",
-    "timestamp": 1778067398.4362633
-  }
+  "pressure": 49.937586476796085,
+  "unit": "PSI",
+  "gauge_name": "Standard PSI Gauge",
+  "angle_degrees": 179.83148348734943,
+  "detection_success": true,
+  "timestamp": 1778151358.1835732
 }

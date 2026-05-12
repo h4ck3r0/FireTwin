@@ -7,11 +7,13 @@ import { readGaugeStatus, GaugeReading } from '@/lib/gaugeReaderService';
 interface LiveGaugeProps {
   pollInterval?: number; // ms between polls
   filepath?: string;
+  serverUrl?: string;
 }
 
 export function LiveGaugeReader({ 
   pollInterval = 500,
-  filepath = '/gauge_status.json'
+  filepath = '/gauge_status.json',
+  serverUrl
 }: LiveGaugeProps) {
   const [reading, setReading] = useState<GaugeReading | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,11 +21,17 @@ export function LiveGaugeReader({
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    // Poll gauge status file
+    // Poll gauge status
     const interval = setInterval(async () => {
       try {
-        // Try to read from public directory (Next.js serves static files from /public)
-        const response = await fetch('/gauge_status.json');
+        // 1. Try local file first (fastest for local development)
+        let response = await fetch(filepath);
+        
+        // 2. Fallback to server if local fails or we are in remote mode
+        if (!response.ok && serverUrl) {
+          response = await fetch(`${serverUrl}/api/gauge-status`);
+        }
+
         if (!response.ok) {
           if (response.status !== 404) {
             setConnected(false);
@@ -37,13 +45,13 @@ export function LiveGaugeReader({
         setConnected(true);
         setLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to read gauge data');
+        // Silent error to prevent UI flickering during network shifts
         setConnected(false);
       }
     }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [pollInterval, filepath]);
+  }, [pollInterval, filepath, serverUrl]);
 
   const getStatusColor = () => {
     if (!connected) return 'bg-gray-500';
@@ -83,15 +91,15 @@ export function LiveGaugeReader({
             <div className="space-y-1">
               <p className="text-xs text-dark-text/60">Pressure</p>
               <p className="text-3xl font-bold text-green-400">
-                {reading.pressure.toFixed(1)}
+                {typeof reading?.pressure === 'number' ? reading.pressure.toFixed(1) : '—'}
               </p>
-              <p className="text-xs text-dark-text/60">{reading.unit}</p>
+              <p className="text-xs text-dark-text/60">{reading?.unit || 'PSI'}</p>
             </div>
 
             <div className="space-y-1">
               <p className="text-xs text-dark-text/60">Angle</p>
               <p className="text-3xl font-bold text-blue-400">
-                {reading.angle_degrees?.toFixed(1) || '—'}°
+                {typeof reading?.angle_degrees === 'number' ? reading.angle_degrees.toFixed(1) : '—'}°
               </p>
               <p className="text-xs text-dark-text/60">Needle Position</p>
             </div>

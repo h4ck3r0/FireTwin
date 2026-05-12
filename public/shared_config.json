@@ -1,0 +1,5 @@
+{
+  "camera_url": "http://100.74.59.66:8080/video",
+  "gauge_reader_ip": "localhost",
+  "firedesk_server_url": "https://firetwin-server-production.up.railway.app"
+}

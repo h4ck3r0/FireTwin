@@ -17,7 +17,7 @@ import { PumpRoomEngine, PumpRoomState } from '@/lib/pumpRoomEngine';
 import { Menu, X } from 'lucide-react';
 
 // Phone camera stream component
-function PhoneCameraFeed() {
+function PhoneCameraFeed({ url }: { url: string }) {
   return (
     <div className="bg-dark-card border border-dark-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
@@ -25,7 +25,7 @@ function PhoneCameraFeed() {
         <span className="text-xs text-green-400 animate-pulse">● LIVE</span>
       </div>
       <img
-        src="http://192.168.1.191:8080/video"
+        src={url || "http://192.168.1.191:8080/video"}
         alt="Phone Camera Feed"
         className="w-full rounded-lg"
         style={{ maxHeight: '300px', objectFit: 'cover' }}
@@ -38,43 +38,61 @@ export default function Dashboard() {
   const [engine] = useState(() => new PumpRoomEngine());
   const [state, setState] = useState<PumpRoomState>(engine.getState());
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [cameraUrl, setCameraUrl] = useState('');
+  const [serverUrl, setServerUrl] = useState('https://firetwin-server-production.up.railway.app');
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Single useEffect — WebSocket + state refresh
+  // Load shared configuration and handle polling
   useEffect(() => {
+    // 1. Load config
+    fetch('/shared_config.json')
+      .then(res => res.json())
+      .then(config => {
+        if (config.camera_url) setCameraUrl(config.camera_url);
+        if (config.firedesk_server_url) setServerUrl(config.firedesk_server_url);
+      })
+      .catch(err => console.error('Failed to load shared_config.json:', err));
+
+    // 2. WebSocket setup
     const connect = () => {
-      const ws = new WebSocket('wss://firetwin-server-production.up.railway.app');
+      const ws = new WebSocket(serverUrl.replace('http', 'ws'));
       wsRef.current = ws;
       ws.onclose = () => setTimeout(connect, 2000);
     };
     connect();
 
+    // 3. Status Polling
     const poll = async () => {
       try {
-        const res = await fetch('https://firetwin-server-production.up.railway.app/api/state');
+        const res = await fetch(`${serverUrl}/api/state`);
         const data = await res.json();
         const ps = data.pumpState;
-        engine.setPumpMode('electric', ps.electricPump.mode);
-        engine.setPumpMode('diesel', ps.dieselPump.mode);
-        engine.setPumpMode('jockey', ps.jockeyPump.mode);
-        setState({ ...engine.getState() });
+        if (ps) {
+          engine.setPumpMode('electric', ps.electricPump.mode);
+          engine.setPumpMode('diesel', ps.dieselPump.mode);
+          engine.setPumpMode('jockey', ps.jockeyPump.mode);
+          setState({ ...engine.getState() });
+        }
       } catch (e) { }
     };
 
     const interval = setInterval(poll, 500);
     return () => clearInterval(interval);
-  }, [engine]);
+  }, [engine, serverUrl]);
 
-  // Toggle pump via server (dashboard buttons)
+  // Toggle pump via server
   const handlePumpToggle = async (pump: 'electric' | 'diesel' | 'jockey') => {
-    await fetch('https://firetwin-server-production.up.railway.app/api/toggle-pump', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pump }),
-    });
+    try {
+      await fetch(`${serverUrl}/api/toggle-pump`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pump }),
+      });
+    } catch (e) {
+      console.error('Failed to toggle pump:', e);
+    }
   };
 
-  // For non-pump controls (pressure, diesel, water, battery)
   const updateState = () => setState(engine.getState());
 
   return (
@@ -169,10 +187,10 @@ export default function Dashboard() {
               {/* Live Camera + Gauge Reader */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
-                  <PhoneCameraFeed />
+                  <PhoneCameraFeed url={cameraUrl} />
                 </div>
                 <div className="lg:col-span-1">
-                  <LiveGaugeReader pollInterval={500} />
+                  <LiveGaugeReader pollInterval={500} serverUrl={serverUrl} />
                 </div>
               </div>
 
