@@ -5,48 +5,26 @@ import { LiveGaugeReader } from '@/components/LiveGaugeReader';
 import { AlertCircle, Home } from 'lucide-react';
 
 export default function LivePage() {
-  const frameRef = useRef<HTMLImageElement>(null);
+  const [cameraUrl, setCameraUrl] = useState('');
   const [connected, setConnected] = useState(true);
   const [frameMissing, setFrameMissing] = useState(false);
 
   useEffect(() => {
-    const frameInterval = setInterval(() => {
-      if (frameRef.current) {
-        frameRef.current.src = `/frames/current_frame.jpg?t=${Date.now()}`;
-      }
-    }, 200);
-
-    return () => clearInterval(frameInterval);
-  }, []);
-
-  useEffect(() => {
-    const testConnection = async () => {
-      try {
-        const response = await fetch(`/frames/current_frame.jpg?t=${Date.now()}`);
-        if (response.ok) {
-          setConnected(true);
-          setFrameMissing(false);
-        } else {
-          setConnected(false);
-          setFrameMissing(true);
-        }
-      } catch {
-        setConnected(false);
-        setFrameMissing(true);
-      }
-    };
-
-    testConnection();
-    const connInterval = setInterval(testConnection, 3000);
-    return () => clearInterval(connInterval);
+    // Load camera URL from shared config
+    fetch('/shared_config.json')
+      .then(res => res.json())
+      .then(config => {
+        if (config.camera_url) setCameraUrl(config.camera_url);
+      })
+      .catch(err => console.error('Failed to load camera config:', err));
   }, []);
 
   return (
     <div className="min-h-screen bg-dark-bg text-dark-text">
       <div className="bg-dark-card border-b border-dark-border p-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Live Gauge Monitoring</h1>
-          <p className="text-dark-text/60 mt-1">Real-time pressure detection from the Python gauge reader</p>
+          <h1 className="text-3xl font-bold">Live Stream Monitoring</h1>
+          <p className="text-dark-text/60 mt-1">Direct stream from the pump room camera</p>
         </div>
         <a
           href="/"
@@ -63,9 +41,8 @@ export default function LivePage() {
             <div className="bg-dark-card border border-dark-border rounded-lg overflow-hidden">
               <div className="relative bg-black aspect-video flex items-center justify-center">
                 <img
-                  ref={frameRef}
-                  src="/frames/current_frame.jpg"
-                  alt="Live gauge"
+                  src={cameraUrl || "http://192.168.1.191:8080/video"}
+                  alt="Live camera stream"
                   className="w-full h-full object-contain"
                   onLoad={() => {
                     setConnected(true);
@@ -77,12 +54,12 @@ export default function LivePage() {
                   }}
                 />
 
-                {frameMissing && (
+                {!cameraUrl && frameMissing && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 px-6 text-center pointer-events-none">
                     <AlertCircle className="text-red-500 mb-3" size={40} />
-                    <p className="text-red-400 text-sm mb-2">Waiting for the camera frame</p>
+                    <p className="text-red-400 text-sm mb-2">Camera stream unavailable</p>
                     <code className="text-yellow-400 text-xs bg-black/50 px-3 py-2 rounded">
-                      cd gauge_reader && python firedesk_integration.py
+                      Check shared_config.json and camera connection
                     </code>
                   </div>
                 )}
@@ -95,7 +72,7 @@ export default function LivePage() {
 
               {connected && (
                 <div className="p-3 bg-green-500/10 border-t border-green-500/30 text-xs text-green-600">
-                  ✓ Python gauge reader active
+                  ✓ Streaming directly from camera source
                 </div>
               )}
             </div>
@@ -107,12 +84,12 @@ export default function LivePage() {
         </div>
 
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-sm text-dark-text/80">
-          <p className="font-semibold text-blue-400 mb-2">How it works:</p>
-          <ol className="space-y-1 ml-4 list-decimal">
-            <li>Python script captures the camera feed</li>
-            <li>It detects the gauge, draws the result, and saves the current frame</li>
-            <li>The web app displays that live frame and reads updated PSI values</li>
-          </ol>
+          <p className="font-semibold text-blue-400 mb-2">Streaming Mode:</p>
+          <ul className="space-y-1 ml-4 list-disc">
+            <li>Direct connection to camera URL (no local processing)</li>
+            <li>Zero disk usage (no images saved)</li>
+            <li>Minimal latency direct from source</li>
+          </ul>
         </div>
       </div>
     </div>

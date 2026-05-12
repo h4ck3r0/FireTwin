@@ -99,24 +99,22 @@ def run_gauge_reader_with_firedesk_integration(calibration_path: str = None):
     print(f"CONNECTED TO CAMERA: {camera_source}")
     print(f"REMOTE SYNC: {'ENABLED' if server_url else 'DISABLED'}")
     
+    # 4. Create frames directory if it doesn't exist
+    public_frames_dir = os.path.join(os.path.dirname(__file__), '..', 'public', 'frames')
+    os.makedirs(public_frames_dir, exist_ok=True)
+    live_frame_path = os.path.join(public_frames_dir, 'current_frame.jpg')
+
     try:
+        print("PURE STREAMING MODE (No Detection, No Disk Writes)")
         while True:
             ret, frame = cap.read()
             if not ret: break
             
-            results = detector.process_frame(frame)
-            if results['success']:
-                # Update Local File
-                firedesk.update_json_file(public_status_file, results['pressure'], 
-                                        results['pressure_unit'], "Main Pump", results['angle_degrees'])
-                
-                # Push to Cloud (Far Away)
-                if server_url:
-                    firedesk.push_to_cloud(results['pressure'], results['pressure_unit'], "Main Pump")
-                
-                print(f"Pressure: {results['pressure']:.1f} {results['pressure_unit']}")
-
-            cv2.imshow('Remote Gauge Reader', detector.draw_detection_results(frame, results))
+            # Show local preview for debugging (optional)
+            cv2.imshow('FireDesk Pure Stream', frame)
+            
+            # Note: Browser handles the direct MJPEG stream from the IP camera URL
+            
             if cv2.waitKey(1) & 0xFF == ord('q'): break
     finally:
         cap.release()

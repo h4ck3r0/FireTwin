@@ -70,9 +70,10 @@ export async function POST(request: NextRequest) {
     
     // Clean up temp image
     try {
-      writeFileSync(imagePath, '');
+      const { unlinkSync } = require('fs');
+      unlinkSync(imagePath);
     } catch (e) {
-      // ignore
+      console.error('Failed to delete temp image:', e);
     }
     
     return NextResponse.json(result);
