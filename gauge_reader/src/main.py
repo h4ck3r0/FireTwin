@@ -11,6 +11,7 @@ import cv2
 import argparse
 import sys
 import os
+import numpy as np
 import json
 from pathlib import Path
 
@@ -287,7 +288,7 @@ class RealTimeGaugeReader:
         Captures video, processes frames, and displays results.
         """
         # Open video capture
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture("http://192.168.0.6:8080/video")
         
         if not cap.isOpened():
             print("ERROR: Cannot open video capture device")
@@ -322,6 +323,19 @@ class RealTimeGaugeReader:
                     else:
                         # Normal mode processing
                         results = self.process_frame(frame)
+
+                        import json, time, os
+                        status_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'public', 'gauge_status.json')
+                        with open(status_path, 'w') as f:
+                            json.dump({
+                                "pressure": results.get('pressure') or 0,
+                                "unit": "PSI",
+                                "timestamp": time.time(),
+                                "gauge_name": "Phone Camera",
+                                "detection_success": results.get('success', False),
+                                "angle_degrees": results.get('angle_degrees')
+                            }, f)
+
                         frame = self.draw_frame(frame, results)
                         
                         # Save frame if requested
@@ -418,5 +432,5 @@ Examples:
 
 
 if __name__ == '__main__':
-    import numpy as np
+    
     main()

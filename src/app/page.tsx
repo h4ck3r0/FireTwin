@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ControlPanel } from '@/components/ControlPanel';
 import { FireReadinessCard } from '@/components/FireReadinessCard';
 import { RadialGauge } from '@/components/RadialGauge';
@@ -15,32 +16,74 @@ import { LiveGaugeReader } from '@/components/LiveGaugeReader';
 import { PumpRoomEngine, PumpRoomState } from '@/lib/pumpRoomEngine';
 import { Menu, X } from 'lucide-react';
 
+// Phone camera stream component
+function PhoneCameraFeed() {
+  return (
+    <div className="bg-dark-card border border-dark-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold text-dark-text">📷 Live Camera Feed</h3>
+        <span className="text-xs text-green-400 animate-pulse">● LIVE</span>
+      </div>
+      <img
+        src="http://192.168.1.191:8080/video"
+        alt="Phone Camera Feed"
+        className="w-full rounded-lg"
+        style={{ maxHeight: '300px', objectFit: 'cover' }}
+      />
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [engine] = useState(() => new PumpRoomEngine());
   const [state, setState] = useState<PumpRoomState>(engine.getState());
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // Sync state updates
-  const updateState = () => {
-    setState(engine.getState());
-  };
-
-  // Note: Auto pressure fluctuation disabled - users control pressure via manual controls
-
-  // Refresh state every second for real-time updates
+  // Single useEffect — WebSocket + state refresh
   useEffect(() => {
-    const interval = setInterval(updateState, 1000);
+    const connect = () => {
+      const ws = new WebSocket('wss://firetwin-server-production.up.railway.app');
+      wsRef.current = ws;
+      ws.onclose = () => setTimeout(connect, 2000);
+    };
+    connect();
+
+    const poll = async () => {
+      try {
+        const res = await fetch('https://firetwin-server-production.up.railway.app/api/state');
+        const data = await res.json();
+        const ps = data.pumpState;
+        engine.setPumpMode('electric', ps.electricPump.mode);
+        engine.setPumpMode('diesel', ps.dieselPump.mode);
+        engine.setPumpMode('jockey', ps.jockeyPump.mode);
+        setState({ ...engine.getState() });
+      } catch (e) { }
+    };
+
+    const interval = setInterval(poll, 500);
     return () => clearInterval(interval);
   }, [engine]);
+
+  // Toggle pump via server (dashboard buttons)
+  const handlePumpToggle = async (pump: 'electric' | 'diesel' | 'jockey') => {
+    await fetch('https://firetwin-server-production.up.railway.app/api/toggle-pump', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pump }),
+    });
+  };
+
+  // For non-pump controls (pressure, diesel, water, battery)
+  const updateState = () => setState(engine.getState());
 
   return (
     <div className="min-h-screen bg-dark-bg text-dark-text">
       <div className="flex h-screen">
         {/* Sidebar */}
         <div
-          className={`${
-            sidebarOpen ? 'w-80' : 'w-0'
-          } bg-dark-sidebar border-r border-dark-border transition-all duration-300 overflow-hidden flex flex-col`}
+          className={`${sidebarOpen ? 'w-80' : 'w-0'
+            } bg-dark-sidebar border-r border-dark-border transition-all duration-300 overflow-hidden flex flex-col`}
         >
           <div className="p-6 border-b border-dark-border">
             <h1 className="text-2xl font-bold text-white">FireDesk</h1>
@@ -67,8 +110,7 @@ export default function Dashboard() {
                 updateState();
               }}
               onPumpToggle={(pump) => {
-                engine.togglePump(pump);
-                updateState();
+                handlePumpToggle(pump);
               }}
             />
           </div>
@@ -91,6 +133,7 @@ export default function Dashboard() {
           {/* Dashboard Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6 max-w-7xl">
+
               {/* Top Row: Fire Readiness and Header Pressure */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1">
@@ -123,8 +166,11 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Live Gauge Reader */}
+              {/* Live Camera + Gauge Reader */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <PhoneCameraFeed />
+                </div>
                 <div className="lg:col-span-1">
                   <LiveGaugeReader pollInterval={500} />
                 </div>
@@ -142,26 +188,17 @@ export default function Dashboard() {
                   <PumpCard
                     name="Electric Pump"
                     pump={state.electricPump}
-                    onToggle={() => {
-                      engine.togglePump('electric');
-                      updateState();
-                    }}
+                    onToggle={() => handlePumpToggle('electric')}
                   />
                   <PumpCard
                     name="Diesel Pump"
                     pump={state.dieselPump}
-                    onToggle={() => {
-                      engine.togglePump('diesel');
-                      updateState();
-                    }}
+                    onToggle={() => handlePumpToggle('diesel')}
                   />
                   <PumpCard
                     name="Jockey Pump"
                     pump={state.jockeyPump}
-                    onToggle={() => {
-                      engine.togglePump('jockey');
-                      updateState();
-                    }}
+                    onToggle={() => handlePumpToggle('jockey')}
                   />
                 </div>
               </div>
@@ -215,6 +252,7 @@ export default function Dashboard() {
                   }}
                 />
               </div>
+
             </div>
           </div>
         </div>
