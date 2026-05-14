@@ -10,7 +10,6 @@ export default function LivePage() {
   const [frameMissing, setFrameMissing] = useState(false);
 
   useEffect(() => {
-    // Load camera URL from shared config
     fetch('/shared_config.json')
       .then(res => res.json())
       .then(config => {
