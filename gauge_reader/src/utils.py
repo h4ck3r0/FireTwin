@@ -63,12 +63,11 @@ def calculate_angle_from_line(line, center_x, center_y):
     """
     x1, y1, x2, y2 = line[0]
     
-    # Calculate vector from line endpoint to center
-    # Use the point closer to center as reference
+    # Use the point FURTHEST from center as the needle tip
     dist1 = math.sqrt((x1 - center_x)**2 + (y1 - center_y)**2)
     dist2 = math.sqrt((x2 - center_x)**2 + (y2 - center_y)**2)
     
-    if dist1 < dist2:
+    if dist1 > dist2:
         px, py = x1, y1
     else:
         px, py = x2, y2
@@ -90,34 +89,32 @@ def calculate_angle_from_line(line, center_x, center_y):
 def convert_angle_to_pressure(angle, min_angle, max_angle, min_pressure, max_pressure):
     """
     Convert needle angle to pressure value using calibration parameters.
-    
-    Formula: Pressure = ((angle - min_angle) / (max_angle - min_angle)) * 
-                       (max_pressure - min_pressure) + min_pressure
-    
-    Args:
-        angle (float): Needle angle in degrees
-        min_angle (float): Angle at minimum pressure (degrees)
-        max_angle (float): Angle at maximum pressure (degrees)
-        min_pressure (float): Minimum pressure value
-        max_pressure (float): Maximum pressure value
-    
-    Returns:
-        float: Calculated pressure value, clamped to [min_pressure, max_pressure]
+    Handles circular wrap-around (e.g. min=225, max=45).
     """
-    # Clamp angle to valid range
-    angle = max(min_angle, min(angle, max_angle))
+    # Normalize all angles to 0-360
+    angle = normalize_angle(angle)
+    min_angle = normalize_angle(min_angle)
+    max_angle = normalize_angle(max_angle)
     
-    # Apply linear interpolation formula
-    angle_range = max_angle - min_angle
-    pressure_range = max_pressure - min_pressure
-    
-    if angle_range == 0:
+    # Calculate total angular sweep
+    sweep = normalize_angle(max_angle - min_angle)
+    if sweep == 0:
         return min_pressure
+        
+    # Calculate how far current angle is from min_angle in the sweep direction
+    rel_angle = normalize_angle(angle - min_angle)
     
-    pressure = ((angle - min_angle) / angle_range) * pressure_range + min_pressure
-    
-    # Ensure pressure is within valid range
-    pressure = max(min_pressure, min(pressure, max_pressure))
+    # Clamp to sweep range
+    if rel_angle > sweep:
+        # If it's outside the sweep, snap to closest end
+        if rel_angle > (sweep + (360 - sweep) / 2):
+            rel_angle = 0
+        else:
+            rel_angle = sweep
+            
+    # Linear interpolation
+    pressure_range = max_pressure - min_pressure
+    pressure = (rel_angle / sweep) * pressure_range + min_pressure
     
     return pressure
 

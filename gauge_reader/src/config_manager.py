@@ -171,22 +171,7 @@ class CalibrationConfig:
                     print(f"Error: '{field}' = {value} is outside valid range [{min_val}, {max_val}]")
                     return False
         
-        # Check angle constraint
-        min_angle = self.data.get('min_angle', 0)
-        max_angle = self.data.get('max_angle', 360)
-        
-        if min_angle >= max_angle:
-            print("Error: min_angle must be less than max_angle")
-            return False
-        
-        # Check pressure constraint
-        min_pressure = self.data.get('min_pressure', 0)
-        max_pressure = self.data.get('max_pressure', 100)
-        
-        if min_pressure >= max_pressure:
-            print("Error: min_pressure must be less than max_pressure")
-            return False
-        
+        # Angle and pressure constraints removed to support circular wrap-around
         return True
     
     def get(self, key: str, default: Any = None) -> Any:

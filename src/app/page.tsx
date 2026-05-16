@@ -12,9 +12,8 @@ import { AdvancedFeatures } from '@/components/AdvancedFeatures';
 import { SystemAlerts } from '@/components/SystemAlerts';
 import { SystemPerformance } from '@/components/SystemPerformance';
 import { EmergencyMode } from '@/components/EmergencyMode';
-import { LiveGaugeReader } from '@/components/LiveGaugeReader';
 import { PumpRoomEngine, PumpRoomState } from '@/lib/pumpRoomEngine';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Camera } from 'lucide-react';
 
 // Phone camera stream component
 function PhoneCameraFeed({ url }: { url: string }) {
@@ -64,6 +63,7 @@ export default function Dashboard() {
     // 3. Status Polling
     const poll = async () => {
       try {
+        // 1. Poll remote system state
         const res = await fetch(`${serverUrl}/api/state`);
         const data = await res.json();
         const ps = data.pumpState;
@@ -71,8 +71,18 @@ export default function Dashboard() {
           engine.setPumpMode('electric', ps.electricPump.mode);
           engine.setPumpMode('diesel', ps.dieselPump.mode);
           engine.setPumpMode('jockey', ps.jockeyPump.mode);
-          setState({ ...engine.getState() });
         }
+
+        // 2. Poll local gauge reader
+        const localRes = await fetch('http://localhost:8000/api/pressure');
+        const localData = await localRes.json();
+        if (localData && localData.pressure !== undefined) {
+          // Convert PSI to bar if needed (1 PSI = 0.0689476 bar)
+          const pressureBar = localData.unit === 'PSI' ? localData.pressure * 0.0689476 : localData.pressure;
+          engine.setHeaderPressure(pressureBar);
+        }
+
+        setState({ ...engine.getState() });
       } catch (e) { }
     };
 
@@ -106,6 +116,15 @@ export default function Dashboard() {
           <div className="p-6 border-b border-dark-border">
             <h1 className="text-2xl font-bold text-white">FireDesk</h1>
             <p className="text-sm text-dark-text/70 mt-1">Pump Room Controller</p>
+            <div className="mt-4">
+              <a 
+                href="/gauge-live" 
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-xs font-bold transition shadow-lg shadow-blue-500/20"
+              >
+                <Camera size={16} />
+                VisionGuide Pro
+              </a>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -190,7 +209,7 @@ export default function Dashboard() {
                   <PhoneCameraFeed url={cameraUrl} />
                 </div>
                 <div className="lg:col-span-1">
-                  <LiveGaugeReader pollInterval={500} serverUrl={serverUrl} />
+                  {/* Gauge reader moved to VisionGuide Pro page */}
                 </div>
               </div>
 

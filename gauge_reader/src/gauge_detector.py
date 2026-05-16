@@ -10,9 +10,11 @@ from typing import Tuple, Optional, List
 
 # Handle both relative and absolute imports
 try:
-    from .utils import calculate_angle_from_line, line_length, point_to_line_distance
+    from .utils import calculate_angle_from_line, line_length, point_to_line_distance, smooth_value, normalize_angle
 except ImportError:
-    from utils import calculate_angle_from_line, line_length, point_to_line_distance
+    from utils import calculate_angle_from_line, line_length, point_to_line_distance, smooth_value, normalize_angle
+
+from collections import deque
 
 
 class GaugeDetector:
@@ -38,6 +40,13 @@ class GaugeDetector:
         self.last_detected_needle = None
         self.last_angle = None
         self.last_pressure = None
+        
+        # Accuracy & Stability parameters
+        self.circle_lock_frames = 0
+        self.max_circle_lock = 30  # Increased to 30 frames (approx 3 seconds)
+        self.smoothing_alpha = 0.08 # EVEN STRONGER SMOOTHING (0.08 = very slow/stable)
+        self.circle_jump_threshold = 15 # Pixels
+        self.angle_window = deque(maxlen=7) # Rolling window for median filtering
     
     def detect_gauge_circle(self, frame: np.ndarray) -> Optional[Tuple[int, int, int]]:
         """
@@ -57,6 +66,10 @@ class GaugeDetector:
         """
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Enhance contrast using CLAHE
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
         
         # Apply Gaussian blur to reduce noise and improve circle detection
         # Larger kernel = more blur = better for noisy images but slower
@@ -94,6 +107,10 @@ class GaugeDetector:
         )
         
         if circles is None or len(circles) == 0:
+            # Circle Locking: Use last known circle if recently detected
+            if self.last_detected_circle and self.circle_lock_frames < self.max_circle_lock:
+                self.circle_lock_frames += 1
+                return self.last_detected_circle
             return None
         
         # Convert to standard format and select largest/most prominent circle
@@ -101,7 +118,18 @@ class GaugeDetector:
         circle = circles[0][0]
         
         center_x, center_y, radius = int(circle[0]), int(circle[1]), int(circle[2])
+        
+        # Stability: If new circle is very close to old one, smooth it instead of jumping
+        if self.last_detected_circle:
+            lcx, lcy, lr = self.last_detected_circle
+            dist = math.sqrt((center_x - lcx)**2 + (center_y - lcy)**2)
+            if dist < self.circle_jump_threshold:
+                center_x = int(smooth_value(center_x, lcx, 0.8))
+                center_y = int(smooth_value(center_y, lcy, 0.8))
+                radius = int(smooth_value(radius, lr, 0.8))
+        
         self.last_detected_circle = (center_x, center_y, radius)
+        self.circle_lock_frames = 0
         
         return center_x, center_y, radius
     
@@ -129,11 +157,15 @@ class GaugeDetector:
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
+        # Enhance contrast using CLAHE
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+        
         # Apply edge detection using Canny algorithm
         # Lower threshold = more edges detected (might include noise)
         # Higher threshold = fewer edges (might miss faint needles)
-        canny_threshold1 = self.config.get('canny_threshold1', 50) if self.config else 50
-        canny_threshold2 = self.config.get('canny_threshold2', 150) if self.config else 150
+        canny_threshold1 = self.config.get('canny_threshold1', 40) if self.config else 40
+        canny_threshold2 = self.config.get('canny_threshold2', 120) if self.config else 120
         
         edges = cv2.Canny(gray, canny_threshold1, canny_threshold2)
         
@@ -167,17 +199,27 @@ class GaugeDetector:
         center_x, center_y = gauge_center
         filtered_lines = []
         
+        # Increase min line length relative to radius for better accuracy
+        dynamic_min_line_length = gauge_radius * 0.4
+        
         for line in lines:
             x1, y1, x2, y2 = line[0]
+            length = line_length(x1, y1, x2, y2)
             
+            if length < dynamic_min_line_length:
+                continue
+                
             # Check if line passes near center
             dist_to_center = point_to_line_distance(center_x, center_y, x1, y1, x2, y2)
             
-            # Accept lines within center region (within 20% of radius)
-            if dist_to_center < gauge_radius * 0.2:
+            # Accept lines within center region (within 15% of radius)
+            if dist_to_center < gauge_radius * 0.15:
                 filtered_lines.append(line)
         
         if not filtered_lines:
+            # If no new line, reuse last needle for stability
+            if self.last_detected_needle is not None:
+                return self.last_detected_needle
             return None
         
         # Select the longest line as the needle
@@ -185,6 +227,79 @@ class GaugeDetector:
         
         self.last_detected_needle = longest_line[0]
         return longest_line[0]
+        
+    def detect_needle_by_color(self, frame: np.ndarray, 
+                              gauge_center: Tuple[int, int], 
+                              gauge_radius: int) -> Optional[np.ndarray]:
+        """
+        Detect needle using color segmentation (Red).
+        More stable than line detection for colored needles.
+        """
+        # Convert to HSV color space
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        
+        # Red color has two ranges in HSV (wrap around 180/0)
+        lower_red1 = np.array([0, 70, 50])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([170, 70, 50])
+        upper_red2 = np.array([180, 255, 255])
+        
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+        
+        # Focus only on the gauge area (circle mask)
+        circle_mask = np.zeros(mask.shape, dtype=np.uint8)
+        cv2.circle(circle_mask, gauge_center, int(gauge_radius * 0.95), 255, -1)
+        mask = cv2.bitwise_and(mask, circle_mask)
+        
+        # Remove small noise
+        kernel = np.ones((3,3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        
+        # Find contours of the red blob
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return None
+            
+        # Select the largest contour (the needle)
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        if cv2.contourArea(largest_contour) < 50: # Minimum size
+            return None
+            
+        # Calculate the moments to find the centroid
+        M = cv2.moments(largest_contour)
+        if M["m00"] == 0:
+            return None
+            
+        # Find the point in the contour furthest from the gauge center (the tip)
+        max_dist = -1
+        tip_x, tip_y = cX, cY
+        
+        for point in largest_contour:
+            px, py = point[0]
+            dist = math.sqrt((px - center_x)**2 + (py - center_y)**2)
+            if dist > max_dist:
+                max_dist = dist
+                tip_x, tip_y = px, py
+        
+        # Construct a line from center to tip
+        dx = tip_x - center_x
+        dy = tip_y - center_y
+        
+        # Scale to gauge radius
+        length = math.sqrt(dx**2 + dy**2)
+        if length == 0: return None
+        
+        target_length = gauge_radius * 0.85
+        x2 = int(center_x + dx * (target_length / length))
+        y2 = int(center_y + dy * (target_length / length))
+        
+        line = np.array([center_x, center_y, x2, y2])
+        self.last_detected_needle = line
+        return line
     
     def calculate_needle_angle(self, needle_line: np.ndarray, 
                               gauge_center: Tuple[int, int]) -> float:
@@ -250,16 +365,42 @@ class GaugeDetector:
         results['gauge_center'] = (center_x, center_y)
         results['gauge_radius'] = radius
         
-        # Detect needle line
-        needle_line = self.detect_needle_line(frame, (center_x, center_y), radius)
+        # Detect needle - Try Color first, fallback to Lines
+        needle_line = self.detect_needle_by_color(frame, (center_x, center_y), radius)
+        
+        if needle_line is None:
+            # Fallback to line detection if color fails
+            needle_line = self.detect_needle_line(frame, (center_x, center_y), radius)
+            
         if needle_line is None:
             return results
         
         results['needle_line'] = needle_line
         
         # Calculate angle
-        angle = self.calculate_needle_angle(needle_line, (center_x, center_y))
+        raw_angle = self.calculate_needle_angle(needle_line, (center_x, center_y))
+        
+        # 1. Median Filter (Rolling Window)
+        self.angle_window.append(raw_angle)
+        
+        # Sort angles for median calculation, handling the 0/360 wrap-around
+        sorted_angles = sorted(list(self.angle_window))
+        # Simple median for now, works if not near wrap-around
+        median_angle = sorted_angles[len(sorted_angles)//2]
+        
+        # 2. Exponential Smoothing
+        angle = median_angle
+        if self.last_angle is not None:
+            # Handle angle wrap-around (e.g. 359 to 1)
+            diff = angle - self.last_angle
+            if diff > 180: angle -= 360
+            elif diff < -180: angle += 360
+            
+            angle = smooth_value(angle, self.last_angle, self.smoothing_alpha)
+            angle = normalize_angle(angle)
+            
         results['angle_degrees'] = angle
+        self.last_angle = angle
         
         # Convert to pressure if config available
         if self.config and self.config.validate():
@@ -271,7 +412,13 @@ class GaugeDetector:
             max_pressure = self.config.get('max_pressure')
             
             pressure = convert_angle_to_pressure(angle, min_angle, max_angle, min_pressure, max_pressure)
+            
+            # Smoothing pressure
+            if self.last_pressure is not None:
+                pressure = smooth_value(pressure, self.last_pressure, self.smoothing_alpha)
+            
             results['pressure'] = pressure
+            self.last_pressure = pressure
             results['pressure_unit'] = self.config.get('unit', 'PSI')
         
         results['success'] = True
