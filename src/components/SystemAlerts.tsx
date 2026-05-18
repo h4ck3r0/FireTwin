@@ -11,7 +11,6 @@ export function SystemAlerts({ state }: SystemAlertsProps) {
   const [logs, setLogs] = useState<Array<{ id: number; type: string; message: string; time: string }>>([]);
 
   useEffect(() => {
-    // Add alerts based on system state
     const newLogs: typeof logs = [];
     
     if (state.headerPressure < 1.5) {

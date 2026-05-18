@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save the image temporarily
     const tmpDir = join(process.cwd(), 'tmp');
     mkdirSync(tmpDir, { recursive: true });
     
@@ -26,7 +25,6 @@ export async function POST(request: NextRequest) {
     const imageBuffer = await imageFile.arrayBuffer();
     writeFileSync(imagePath, Buffer.from(imageBuffer));
 
-    // Run Python gauge detector
     const pythonScript = join(
       process.cwd(),
       '..',
@@ -52,7 +50,6 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Update the gauge_status.json file so the frontend can read it
     const statusFilePath = join(process.cwd(), '..', 'gauge_reader', 'gauge_status.json');
     try {
       const statusData = {
@@ -68,7 +65,6 @@ export async function POST(request: NextRequest) {
       console.error('Could not write status file:', err);
     }
     
-    // Clean up temp image
     try {
       const { unlinkSync } = require('fs');
       unlinkSync(imagePath);

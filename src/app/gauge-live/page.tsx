@@ -29,7 +29,9 @@ export default function GaugeLivePage() {
   const [gaugeId, setGaugeId] = useState('default_psi');
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize Camera
+  const [streamImage, setStreamImage] = useState<string | null>(null);
+  const [cameraUrl, setCameraUrl] = useState<string | null>(null);
+
   useEffect(() => {
     async function setupCamera() {
       try {
@@ -47,10 +49,10 @@ export default function GaugeLivePage() {
     setupCamera();
   }, []);
 
-  // Initialize WebSocket
   useEffect(() => {
     const connectWS = () => {
-      const ws = new WebSocket('ws://localhost:8000/ws/gauge');
+      const wsHost = window.location.hostname;
+      const ws = new WebSocket(`ws://${wsHost}:8000/ws/gauge`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -60,13 +62,16 @@ export default function GaugeLivePage() {
 
       ws.onclose = () => {
         setConnected(false);
-        setTimeout(connectWS, 2000); // Reconnect
+        setTimeout(connectWS, 2000); 
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'results') {
+        if (data.type === 'results' || data.type === 'stream_results') {
           setResults(data);
+          if (data.image) {
+             setStreamImage(data.image);
+          }
         } else if (data.type === 'calibration_updated') {
           console.log('Calibration updated successfully');
         }
@@ -78,10 +83,14 @@ export default function GaugeLivePage() {
     };
 
     connectWS();
-    return () => wsRef.current?.close();
+    return () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'stop_ip_camera' }));
+      }
+      wsRef.current?.close();
+    }
   }, []);
 
-  // Frame Capture and Sending
   const sendFrame = useCallback(() => {
     if (!videoRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
@@ -102,37 +111,32 @@ export default function GaugeLivePage() {
   }, [gaugeId]);
 
   useEffect(() => {
-    const interval = setInterval(sendFrame, 200); // 5 FPS for better stability
+    const interval = setInterval(sendFrame, 200); 
     return () => clearInterval(interval);
   }, [sendFrame]);
 
-  // Drawing results on canvas
   useEffect(() => {
     if (!canvasRef.current || !results) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
     if (results.success && results.gauge_center && results.gauge_radius) {
       const [cx, cy] = results.gauge_center;
       const r = results.gauge_radius;
 
-      // Draw Gauge Circle
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, 2 * Math.PI);
       ctx.strokeStyle = '#00f2ff';
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Draw Center
       ctx.beginPath();
       ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
       ctx.fillStyle = '#ff0055';
       ctx.fill();
 
-      // Draw Needle
       if (results.needle_line) {
         const [x1, y1, x2, y2] = results.needle_line;
         ctx.beginPath();
@@ -143,7 +147,6 @@ export default function GaugeLivePage() {
         ctx.stroke();
       }
 
-      // Draw Calibration Angles if in calibration mode
       if (isCalibrating) {
         const drawAngleLine = (angle: number, color: string, label: string, dashed = true) => {
           const rad = (angle * Math.PI) / 180;
@@ -158,7 +161,6 @@ export default function GaugeLivePage() {
           ctx.stroke();
           ctx.setLineDash([]);
           
-          // Draw Label background
           ctx.fillStyle = color;
           ctx.font = 'bold 12px Inter, sans-serif';
           ctx.fillRect(x - 5, y - 20, 60, 20);
@@ -183,7 +185,6 @@ export default function GaugeLivePage() {
     const y = (e.clientY - rect.top) * scaleY;
     const [cx, cy] = results.gauge_center;
 
-    // Calculate angle of click relative to center
     const angle = Math.atan2(y - cy, x - cx) * (180 / Math.PI);
     const normalizedAngle = (angle + 360) % 360;
 

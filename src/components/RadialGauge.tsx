@@ -20,14 +20,13 @@ export function RadialGauge({
   criticalThreshold,
 }: RadialGaugeProps) {
   const percentage = (value / max) * 100;
-  const rotation = (percentage / 100) * 270 - 135; // 270 degree range
+  const rotation = (percentage / 100) * 270 - 135; 
 
-  // Determine color based on thresholds
-  let gaugeColor = '#10b981'; // green (ready)
+  let gaugeColor = '#10b981'; 
   if (criticalThreshold !== undefined && value < criticalThreshold) {
-    gaugeColor = '#ef4444'; // red (critical)
+    gaugeColor = '#ef4444'; 
   } else if (lowThreshold !== undefined && value < lowThreshold) {
-    gaugeColor = '#f59e0b'; // amber (warning)
+    gaugeColor = '#f59e0b'; 
   }
 
   const circumference = 2 * Math.PI * 45;

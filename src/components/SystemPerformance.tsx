@@ -8,7 +8,6 @@ interface SystemPerformanceProps {
 }
 
 export function SystemPerformance({ state }: SystemPerformanceProps) {
-  // Calculate efficiency percentage
   const calculateEfficiency = () => {
     const electricEfficiency = state.electricPump.efficiency;
     const dieselEfficiency = state.dieselPump.efficiency;
@@ -16,7 +15,6 @@ export function SystemPerformance({ state }: SystemPerformanceProps) {
     return Math.round((electricEfficiency + dieselEfficiency + jockeyEfficiency) / 3);
   };
 
-  // Calculate system reliability
   const calculateReliability = () => {
     const pumpStatus = 
       (state.electricPump.status === 'Standby' || state.electricPump.status === 'Running' ? 1 : 0) +

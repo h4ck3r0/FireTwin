@@ -15,7 +15,6 @@ import { EmergencyMode } from '@/components/EmergencyMode';
 import { PumpRoomEngine, PumpRoomState } from '@/lib/pumpRoomEngine';
 import { Menu, X, Camera } from 'lucide-react';
 
-// Phone camera stream component
 function PhoneCameraFeed({ url }: { url: string }) {
   return (
     <div className="bg-dark-card border border-dark-border rounded-lg p-4">
@@ -41,9 +40,7 @@ export default function Dashboard() {
   const [serverUrl, setServerUrl] = useState('https://firetwin-server-production.up.railway.app');
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Load shared configuration and handle polling
   useEffect(() => {
-    // 1. Load config
     fetch('/shared_config.json')
       .then(res => res.json())
       .then(config => {
@@ -52,7 +49,6 @@ export default function Dashboard() {
       })
       .catch(err => console.error('Failed to load shared_config.json:', err));
 
-    // 2. WebSocket setup
     const connect = () => {
       const ws = new WebSocket(serverUrl.replace('http', 'ws'));
       wsRef.current = ws;
@@ -60,10 +56,8 @@ export default function Dashboard() {
     };
     connect();
 
-    // 3. Status Polling
     const poll = async () => {
       try {
-        // 1. Poll remote system state
         const res = await fetch(`${serverUrl}/api/state`);
         const data = await res.json();
         const ps = data.pumpState;
@@ -73,11 +67,10 @@ export default function Dashboard() {
           engine.setPumpMode('jockey', ps.jockeyPump.mode);
         }
 
-        // 2. Poll local gauge reader
-        const localRes = await fetch('http://localhost:8000/api/pressure');
+        const apiHost = window.location.hostname;
+        const localRes = await fetch(`http://${apiHost}:8000/api/pressure`);
         const localData = await localRes.json();
         if (localData && localData.pressure !== undefined) {
-          // Convert PSI to bar if needed (1 PSI = 0.0689476 bar)
           const pressureBar = localData.unit === 'PSI' ? localData.pressure * 0.0689476 : localData.pressure;
           engine.setHeaderPressure(pressureBar);
         }
@@ -90,7 +83,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [engine, serverUrl]);
 
-  // Toggle pump via server
   const handlePumpToggle = async (pump: 'electric' | 'diesel' | 'jockey') => {
     try {
       await fetch(`${serverUrl}/api/toggle-pump`, {
@@ -182,12 +174,12 @@ export default function Dashboard() {
                 <div className="lg:col-span-2 bg-dark-card border border-dark-border rounded-lg p-6">
                   <div className="flex items-center justify-center h-full">
                     <RadialGauge
-                      value={state.headerPressure}
-                      max={12}
-                      unit="bar"
+                      value={state.headerPressure * 14.5038}
+                      max={175}
+                      unit="PSI"
                       label="Header Pressure"
-                      lowThreshold={2.0}
-                      criticalThreshold={1.5}
+                      lowThreshold={29}
+                      criticalThreshold={21}
                     />
                   </div>
                 </div>
@@ -254,7 +246,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-dark-text/60">Header Pressure</p>
-                    <p className="font-semibold text-dark-text">{state.headerPressure.toFixed(2)} bar</p>
+                    <p className="font-semibold text-dark-text">{(state.headerPressure * 14.5038).toFixed(1)} PSI</p>
                   </div>
                   <div>
                     <p className="text-dark-text/60">Diesel Reserve</p>

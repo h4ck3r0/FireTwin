@@ -9,7 +9,6 @@ interface PumpSystemRealisticProps {
 }
 
 export function PumpSystemRealistic({ state }: PumpSystemRealisticProps) {
-  // Determine pressure status
   const getPressureStatus = () => {
     if (state.headerPressure < 1.5) return { level: 'CRITICAL_LOW', color: '#ef4444', label: 'CRITICAL LOW' };
     if (state.headerPressure < 2.0) return { level: 'LOW', color: '#f97316', label: 'LOW PRESSURE' };

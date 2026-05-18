@@ -10,23 +10,23 @@ interface PumpSystem2DProps {
 export function PumpSystem2D({ state }: PumpSystem2DProps) {
   const getPumpColor = (mode: 'ON' | 'OFF', status: string) => {
     if (mode === 'ON') {
-      return status === 'Running' ? '#10b981' : '#f59e0b'; // Green if running, yellow if issue
+      return status === 'Running' ? '#10b981' : '#f59e0b'; 
     }
-    return '#6b7280'; // Gray if off
+    return '#6b7280'; 
   };
 
   const getPressureColor = () => {
-    if (state.headerPressure < 1.5) return '#ef4444'; // Red - critical low
-    if (state.headerPressure < 2.0) return '#f97316'; // Orange - low
-    if (state.headerPressure > 10) return '#ef4444'; // Red - critical high
-    if (state.headerPressure > 8) return '#f97316'; // Orange - high
-    return '#10b981'; // Green - normal
+    if (state.headerPressure < 1.5) return '#ef4444'; 
+    if (state.headerPressure < 2.0) return '#f97316'; 
+    if (state.headerPressure > 10) return '#ef4444'; 
+    if (state.headerPressure > 8) return '#f97316'; 
+    return '#10b981'; 
   };
 
   const getWaterColor = () => {
-    if (state.waterLevel < 50) return '#ef4444'; // Red - critical
-    if (state.waterLevel < 100) return '#f97316'; // Orange - low
-    return '#10b981'; // Green - normal
+    if (state.waterLevel < 50) return '#ef4444'; 
+    if (state.waterLevel < 100) return '#f97316'; 
+    return '#10b981'; 
   };
 
   return (

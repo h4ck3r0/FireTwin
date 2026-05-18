@@ -6,18 +6,15 @@
  */
 
 export interface PumpRoomState {
-  // Pressure and Levels
-  headerPressure: number; // 0-12 bar
-  dieselLevel: number; // 0-200 liters
-  waterLevel: number; // 0-300 kL
+  headerPressure: number; 
+  dieselLevel: number; 
+  waterLevel: number; 
   batteryHealth: 'Healthy' | 'Low' | 'Critical';
 
-  // Pump Status
   electricPump: PumpStatus;
   dieselPump: PumpStatus;
   jockeyPump: PumpStatus;
 
-  // Derived Status
   fireReadiness: 'READY' | 'NEEDS_ATTENTION' | 'CRITICAL';
   systemHealth: 'HEALTHY' | 'WARNING' | 'CRITICAL';
 }
@@ -26,7 +23,7 @@ export interface PumpStatus {
   mode: 'ON' | 'OFF';
   status: 'Running' | 'Standby' | 'Fault' | 'Offline';
   runHours: number;
-  efficiency: number; // 0-100%
+  efficiency: number; 
   lastServiceDate?: string;
 }
 
@@ -106,10 +103,9 @@ export class PumpRoomEngine {
     
     pumpStatus.mode = pumpStatus.mode === 'ON' ? 'OFF' : 'ON';
     
-    // Update running status
     if (pumpStatus.mode === 'ON') {
       pumpStatus.status = 'Running';
-      pumpStatus.runHours += 0.1; // Simulate run hour increment
+      pumpStatus.runHours += 0.1; 
     } else {
       pumpStatus.status = 'Standby';
     }
@@ -137,7 +133,6 @@ export class PumpRoomEngine {
    * NEEDS_ATTENTION: Diesel < 50L OR Battery is 'Low' OR Water < 100 kL OR Pressure < 2.0 bar OR Pressure > 8 bar
    */
   private evaluateFireReadiness(): 'READY' | 'NEEDS_ATTENTION' | 'CRITICAL' {
-    // Critical conditions
     if (
       this.state.dieselLevel < 10 ||
       this.state.batteryHealth === 'Critical' ||
@@ -148,7 +143,6 @@ export class PumpRoomEngine {
       return 'CRITICAL';
     }
 
-    // Warning conditions
     if (
       this.state.dieselLevel < 50 ||
       this.state.batteryHealth === 'Low' ||
@@ -159,7 +153,6 @@ export class PumpRoomEngine {
       return 'NEEDS_ATTENTION';
     }
 
-    // All systems good
     return 'READY';
   }
 
@@ -173,22 +166,18 @@ export class PumpRoomEngine {
     const jockey = this.state.jockeyPump;
     const pressure = this.state.headerPressure;
 
-    // Critical: Dangerously low pressure or dangerously high pressure
     if ((pressure < 1.5 && jockey.mode === 'OFF') || pressure > 10) {
       return 'CRITICAL';
     }
 
-    // Warning: Low pressure conditions
     if (pressure < 2.0 && jockey.status !== 'Running') {
       return 'WARNING';
     }
 
-    // Warning: High pressure building up
     if (pressure > 9) {
       return 'WARNING';
     }
 
-    // Warning: Any pump in fault state
     if (
       this.state.electricPump.status === 'Fault' ||
       this.state.dieselPump.status === 'Fault' ||

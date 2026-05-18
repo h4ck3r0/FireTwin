@@ -1,8 +1,18 @@
 {
   "gauge_name": "default_psi",
   "unit": "PSI",
-  "min_angle": 120.26278970949642,
-  "max_angle": 60.91931236663066,
+  "description": "Calibrated exactly for the physical gauge in the photo. 0 PSI at bottom-left (135 deg), 100 PSI at bottom-right (45 deg).",
+  "min_angle": 135.0,
+  "max_angle": 45.0,
   "min_pressure": 0,
-  "max_pressure": 100
+  "max_pressure": 100,
+  "hough_circles_param1": 100,
+  "hough_circles_param2": 30,
+  "hough_circles_minRadius": 50,
+  "hough_circles_maxRadius": 300,
+  "canny_threshold1": 40,
+  "canny_threshold2": 120,
+  "gaussian_kernel": [15, 15],
+  "hough_lines_minLineLength": 50,
+  "hough_lines_maxLineGap": 10
 }

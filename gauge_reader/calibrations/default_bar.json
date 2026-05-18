@@ -11,7 +11,7 @@
   "hough_circles_minRadius": 50,
   "hough_circles_maxRadius": 300,
   "canny_threshold1": 50,
-  "cancy_threshold2": 150,
+  "canny_threshold2": 150,
   "gaussian_kernel": [15, 15],
   "hough_lines_minLineLength": 50,
   "hough_lines_maxLineGap": 10
